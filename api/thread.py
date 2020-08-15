@@ -21,7 +21,7 @@ class UnboundClusterAPI(threading.Thread):
 
     def __init__(self, bind='127.0.0.1', port=8000):
         """
-        Create an instance of the Hermes API entrypoint process.
+        Create an instance of the REST API interface.
 
         Args:
             bind (str, optional): The bind address for the API process. Defaults to '127.0.0.1'.
