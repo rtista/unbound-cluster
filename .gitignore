@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custom directories
+.idea/
+logs/
+
+# Custom files
+config.json

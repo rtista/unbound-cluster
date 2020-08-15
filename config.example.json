@@ -1,0 +1,10 @@
+{
+    "log": {
+        "level": "DEBUG",
+        "file": "logs/unbound-cluster.log",
+        "error": "logs/unbound-cluster-error.log"
+    },
+    "pidfile": "unbound-cluster.pid",
+    "database": "sqlite:///unbound-cluster.sqlite",
+    "unbound-bin": "/usr/bin/unbound"
+}
