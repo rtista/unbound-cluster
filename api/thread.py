@@ -5,10 +5,16 @@ import threading
 import bjoern
 import falcon
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import scoped_session
+from sqlalchemy.exc import OperationalError
 
 # Local Imports
-from .middleware import LoggingMiddleware
+from config import Config
+from models import Base
 from .controllers import BASE_ENDPOINT, ROUTES
+from .middleware import LoggingMiddleware, SQLAlchemyMiddleware
 
 
 class UnboundClusterAPI(threading.Thread):
@@ -36,10 +42,25 @@ class UnboundClusterAPI(threading.Thread):
         """
         This will run in a separate thread.
         """
+        # MySQL Connection Configuration
+        engine = create_engine(Config.get('datastore'))
+        session_factory = sessionmaker(bind=engine)
+        session = scoped_session(session_factory)
+
+        # MySQL Table Models Configuration
+        try:
+            Base.metadata.create_all(engine)
+
+        except (OperationalError) as e:
+            code, message = e.orig.args
+            logger.error(f'Operational Error\nCode: {code}\nMessage: {message}')
+            exit(1)
+
         # Create WSGI Application
         api = falcon.API(
             middleware=[
                 LoggingMiddleware(),
+                SQLAlchemyMiddleware(session)
             ]
         )
 

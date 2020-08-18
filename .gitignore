@@ -134,3 +134,5 @@ logs/
 
 # Custom files
 config.json
+*.pid
+*.sqlite
