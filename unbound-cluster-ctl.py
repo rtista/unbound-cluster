@@ -42,8 +42,19 @@ def stop():
     os.kill(pid, signal.SIGINT)
 
     # Wait for process to end
+    attempts = 0
     while os.path.isdir(f'/proc/{pid}'):
+
         print('Waiting for Unbound Cluster to stop...')
+
+        # Send SIGTERM to process every 5 seconds
+        if attempts % 5 == 0:
+            os.kill(pid, signal.SIGINT)
+
+        # Increment attempts
+        attempts += 1
+
+        # Rest for a while
         time.sleep(1)
 
 
