@@ -11,5 +11,6 @@ ROUTES = {
     # Zone Controller
     '/zone': ZoneController,
     '/zone/{zone}': ZoneController,
-    '/zone/{zone}/{rrtype}/': RecordController
+    '/zone/{zone}/record': RecordController,
+    '/zone/{zone}/record/{rtype}': RecordController
 }

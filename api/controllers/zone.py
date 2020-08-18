@@ -1,5 +1,9 @@
 # Third-party Imports
 import falcon
+import sqlalchemy
+
+# Local Imports
+from models import Record
 
 
 class ZoneController:
@@ -16,7 +20,7 @@ class ZoneController:
         :param zone: The DNS zone.
         """
         # Select all zones from the database
-        res = self.dbconn.execute('''SELECT DISTINCT zone FROM records''')
+        queryset = self.dbconn.query(sqlalchemy.distinct(Record.zone)).all()
 
-        resp.media = { 'zones': [ z for z in res ] }
+        resp.media = { 'zones': [ zone for (zone, ) in queryset ] }
         resp.status = falcon.HTTP_200
