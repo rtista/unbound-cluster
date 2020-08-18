@@ -9,8 +9,7 @@ class LoggingMiddleware(object):
     """
     Log every request received by the server.
     """
-    @staticmethod
-    def process_request(req, resp):
+    def process_request(self, req, resp):
         """Process the request before routing it.
 
         Note:
@@ -26,8 +25,7 @@ class LoggingMiddleware(object):
         """
         req.req_start_time = time.time()
 
-    @staticmethod
-    def process_response(req, resp, resource, req_succeeded):
+    def process_response(self, req, resp, resource, req_succeeded):
         """Post-processing of the response (after routing).
 
         Args:
