@@ -1,7 +1,7 @@
 # Third-party Imports
 import falcon
-
-# Third-party Imports
+import sqlalchemy
+from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError, NoReferenceError
 
 # Local Imports
@@ -27,15 +27,19 @@ class RecordController(object):
             raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' in the request URL.')
 
         # Get all records of zone
-        query = self.dbconn.query(Record).filter(Record.zone == zone)
+        where = f'zone = "{zone}"'
 
         # Check if record is specified
         if rtype:
-            query.filter(Record.rtype == rtype)
+            where += f' AND type = "{rtype}"'
+
+        # Check for updated parameter
+        if 'updated' in req.params and str(req.params['updated']).isnumeric() and int(req.params['updated']) > 0:
+            where += f' AND updated > {int(req.params["updated"])}'
 
         # For each record in the warehouse
         records = []
-        for record in query.all():
+        for record in self.dbconn.query(Record).filter(sqlalchemy.text(where)).all():
 
             records.append({
                 'zone': record.zone,
