@@ -23,8 +23,8 @@ class RecordController(object):
         :param rtype: The record type.
         """
         # Check URL parameters
-        if None in (zone, rtype):
-            raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' or \'rtype\' in the request URL.')
+        if not zone:
+            raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' in the request URL.')
 
         # Get all records of zone
         query = self.dbconn.query(Record).filter(Record.zone == zone)
@@ -33,7 +33,21 @@ class RecordController(object):
         if rtype:
             query.filter(Record.rtype == rtype)
 
-        resp.media = { 'records': [ r.resource for r in query.all() ] }
+        # For each record in the warehouse
+        records = []
+        for record in query.all():
+
+            records.append({
+                'zone': record.zone,
+                'resource': record.resource,
+                'rtype': record.rtype,
+                'ttl': record.ttl,
+                'rdata': record.rdata,
+                'created': record.created,
+                'updated': record.updated,
+            })
+
+        resp.media = { 'records': records }
         resp.status = falcon.HTTP_200
 
     def on_post(self, req, resp, zone=None, rtype=None):
