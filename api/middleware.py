@@ -87,5 +87,5 @@ class SQLAlchemyMiddleware(object):
         """
         if hasattr(resource, 'dbconn'):
             if not req_succeeded:
-                resource.db_conn.rollback()
+                resource.dbconn.rollback()
             self.Session.remove()
