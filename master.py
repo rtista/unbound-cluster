@@ -10,7 +10,9 @@ from loguru import logger
 
 # Local Imports
 from config import Config
+from api import UnboundClusterAPI
 from utils.process import UnixProcess
+from client import UnboundClusterSyncer
 
 
 class UnboundClusterMaster(UnixProcess):
@@ -26,12 +28,22 @@ class UnboundClusterMaster(UnixProcess):
         Creates the process.
         """
         super().__init__('master process')
+        self._apithread = None
+        self._syncthread = None
 
     def _monit(self):
         """
         Monitors the instances of required threads.
         """
-        return
+        # Check API thread
+        if not self._apithread or not self._apithread.is_alive():
+            self._apithread = UnboundClusterAPI()
+            self._apithread.start()
+
+        # Check Sync thread
+        if not self._syncthread or not self._syncthread.is_alive():
+            self._syncthread = UnboundClusterSyncer()
+            self._syncthread.start()
 
     @logger.catch
     def run(self):
@@ -46,8 +58,8 @@ class UnboundClusterMaster(UnixProcess):
             Config.getpath('log.file'),
             level=Config.get('log.level'), colorize=True, enqueue=True,
             format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> |'
-                   '<yellow>{process.name: <23}</yellow> | '
-                   '<level>{message}</level> (<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>)',
+                    '<yellow>{process.name: <23}</yellow> | '
+                    '<level>{message}</level> (<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>)',
             rotation=timedelta(days=1), retention=timedelta(days=30), compression='gz')
 
         # Set process title
@@ -63,7 +75,6 @@ class UnboundClusterMaster(UnixProcess):
 
         # While not stopping
         while self._stop is False:
-            # TODO: Recheck configuration file
 
             # Monit instances
             self._monit()
@@ -71,6 +82,9 @@ class UnboundClusterMaster(UnixProcess):
             time.sleep(1)
 
         logger.debug('Terminating...')
+
+        # Stop syncer thread
+        self._syncthread.stopthread()
 
         # Remove pidfile and socket
         with contextlib.suppress(FileNotFoundError):

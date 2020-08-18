@@ -39,7 +39,7 @@ def stop():
         return
 
     # Send SIGTERM to process
-    os.kill(pid, signal.SIGTERM)
+    os.kill(pid, signal.SIGINT)
 
     # Wait for process to end
     while os.path.isdir(f'/proc/{pid}'):

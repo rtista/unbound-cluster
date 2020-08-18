@@ -21,6 +21,12 @@ class UnboundClusterSyncer(threading.Thread):
         super().__init__()
         self._stop = False
 
+    def stopthread(self):
+        """
+        Stops the thread execution.
+        """
+        self._stop = True
+
     @logger.catch
     def run(self):
         """
