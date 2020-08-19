@@ -33,7 +33,7 @@ class UnboundClusterAPI(threading.Thread):
             bind (str, optional): The bind address for the API process. Defaults to '127.0.0.1'.
             port (int, optional): The port to which to bind. Defaults to 8000.
         """
-        super().__init__()
+        super().__init__(name='unbound-cluster-api')
         self._bind = bind
         self._port = port
 

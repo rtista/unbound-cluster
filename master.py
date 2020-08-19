@@ -57,8 +57,8 @@ class UnboundClusterMaster(UnixProcess):
         logger.add(
             Config.getpath('log.file'),
             level=Config.get('log.level'), colorize=True, enqueue=True,
-            format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> |'
-                    '<yellow>{process.name: <23}</yellow> | '
+            format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | '
+                    '<yellow>{thread.name: <23}</yellow> | '
                     '<level>{message}</level> (<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>)',
             rotation=timedelta(days=1), retention=timedelta(days=30), compression='gz')
 
