@@ -74,7 +74,6 @@ class UnboundClusterSyncer(threading.Thread):
                     with open(f'{Config.getpath("unbound-zones-dir")}/{zone}.conf', 'w+') as zonefile:
                         zonefile.write(f'server:\n\nlocal-zone: "e-goi.com" transparent\n\n')
                         zonefile.writelines([ f'local-data: "{" ".join((".".join((r["resource"], r["zone"])), r["rtype"], str(r["ttl"]), r["rdata"]))}"\n' for r in records.json().get("records") ])
-                        zonefile.write('\n')
 
                 # Update lastupdate variable
                 self._lastupdate = int(time.time())

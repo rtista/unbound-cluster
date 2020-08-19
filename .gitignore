@@ -132,6 +132,7 @@ dmypy.json
 .vscode/
 .idea/
 logs/
+zones.d/
 
 # Custom files
 config.json
