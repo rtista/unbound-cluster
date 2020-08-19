@@ -3,3 +3,4 @@ falcon
 setproctitle
 sqlalchemy
 bjoern
+requests
