@@ -39,7 +39,12 @@ class LoggingMiddleware(object):
                 otherwise False.
         """
         reqtime = round(float(time.time() - req.req_start_time), 3)
-        logger.info(f'{req.access_route} {req.method} {req.uri} {resp.status} {req_succeeded} {reqtime}')
+
+        # Log slave requests as debug
+        if req.user_agent == 'unbound-cluster-slave':
+            logger.debug(f'{req.access_route} {req.method} {req.uri} {resp.status} {req_succeeded} {reqtime}')
+        else:
+            logger.info(f'{req.access_route} {req.method} {req.uri} {resp.status} {req_succeeded} {reqtime}')
 
 
 class SQLAlchemyMiddleware(object):

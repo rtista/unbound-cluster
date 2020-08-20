@@ -21,6 +21,8 @@ class ClusterSlave(threading.Thread):
     Args:
         threading.Thread (class): The Thread class.
     """
+    # Slave headers
+    _slave_headers = {'User-Agent': 'unbound-cluster-slave'}
 
     def __init__(self):
         """
@@ -80,7 +82,7 @@ class ClusterSlave(threading.Thread):
             try:
 
                 # Retrieve most recent
-                resp = requests.get(f'{self._master_location}/zone?updated={self._lastupdate}')
+                resp = requests.get(f'{self._master_location}/zone?updated={self._lastupdate}', headers=self._slave_headers)
 
                 # Continue on API error
                 if resp.status_code != 200:
@@ -91,7 +93,7 @@ class ClusterSlave(threading.Thread):
                 for zone in resp.json().get('zones'):
 
                     # Request updated records from zone
-                    records = requests.get(f'{self._master_location}/zone/{zone}/record')
+                    records = requests.get(f'{self._master_location}/zone/{zone}/record', headers=self._slave_headers)
 
                     # No new records
                     if not records.json().get('records'):
