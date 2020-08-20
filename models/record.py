@@ -8,6 +8,16 @@ from sqlalchemy import Column, Integer, String, Enum
 from . import Base
 
 
+def unixtime():
+    """
+    Helper class for integer unix timestamp generation.
+
+    Returns:
+        int: Unix timestamp as integer.
+    """
+    return int(time.time())
+
+
 class Record(Base):
 
     __tablename__ = 'records'
@@ -18,5 +28,5 @@ class Record(Base):
     rtype = Column('type', Enum('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'CERT', 'SRV', 'TXT', 'SOA'), nullable=False)
     ttl = Column('ttl', Integer, default=3600, nullable=False)
     rdata = Column('rdata', String(255), nullable=False)
-    created = Column('created', Integer, default=int(time.time()))
-    updated = Column('updated', Integer, default=int(time.time()), onupdate=int(time.time()))
+    created = Column('created', Integer, default=unixtime)
+    updated = Column('updated', Integer, default=unixtime, onupdate=unixtime)
