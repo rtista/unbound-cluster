@@ -5,6 +5,14 @@
         "error": "logs/unbound-cluster-error.log"
     },
     "pidfile": "unbound-cluster.pid",
-    "database": "sqlite:///unbound-cluster.sqlite",
-    "unbound-bin": "/usr/bin/unbound"
+    "cluster-master": {
+        "datastore": "sqlite:///unbound-cluster.sqlite",
+        "bind": "127.0.0.1",
+        "port": 8000
+    },
+    "cluster-slave": {
+        "local-data-dir": "local-data.d",
+        "unbound-pid": "/var/run/unbound/unbound.pid",
+        "master-location": "http://127.0.0.1:8000/api"
+    }
 }

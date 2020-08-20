@@ -10,9 +10,9 @@ from loguru import logger
 
 # Local Imports
 from config import Config
-from api import UnboundClusterAPI
+from api import ClusterMaster
 from utils.process import UnixProcess
-from client import UnboundClusterSyncer
+from client import ClusterSlave
 
 
 class UnboundClusterMaster(UnixProcess):
@@ -35,14 +35,14 @@ class UnboundClusterMaster(UnixProcess):
         """
         Monitors the instances of required threads.
         """
-        # Check API thread
-        if not self._apithread or not self._apithread.is_alive():
-            self._apithread = UnboundClusterAPI()
+        # If master is configured and not running, spawn thread
+        if Config.get('cluster-master') and (not self._apithread or not self._apithread.is_alive()):
+            self._apithread = ClusterMaster(**Config.get('cluster-master'))
             self._apithread.start()
 
-        # Check Sync thread
-        if not self._syncthread or not self._syncthread.is_alive():
-            self._syncthread = UnboundClusterSyncer()
+        # If slave thread is configured and not running, spawn thread
+        if Config.get('cluster-slave') and (not self._syncthread or not self._syncthread.is_alive()):
+            self._syncthread = ClusterSlave()
             self._syncthread.start()
 
     @logger.catch
