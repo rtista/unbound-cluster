@@ -17,7 +17,7 @@ from .controllers import BASE_ENDPOINT, ROUTES
 from .middleware import LoggingMiddleware, SQLAlchemyMiddleware
 
 
-class UnboundClusterAPI(threading.Thread):
+class ClusterMaster(threading.Thread):
     """
     Represents the REST API interface.
 
@@ -25,7 +25,7 @@ class UnboundClusterAPI(threading.Thread):
         threading.Thread (class): The Thread class.
     """
 
-    def __init__(self, bind='127.0.0.1', port=8000):
+    def __init__(self, datastore='sqlite:///unbound-cluster.sqlite', bind='127.0.0.1', port=8000):
         """
         Create an instance of the REST API interface.
 
@@ -33,7 +33,8 @@ class UnboundClusterAPI(threading.Thread):
             bind (str, optional): The bind address for the API process. Defaults to '127.0.0.1'.
             port (int, optional): The port to which to bind. Defaults to 8000.
         """
-        super().__init__(name='unbound-cluster-api')
+        super().__init__(name='cluster-master')
+        self._datastore = datastore
         self._bind = bind
         self._port = port
 
@@ -43,7 +44,7 @@ class UnboundClusterAPI(threading.Thread):
         This will run in a separate thread.
         """
         # MySQL Connection Configuration
-        engine = create_engine(Config.get('datastore'))
+        engine = create_engine(self._datastore)
         session_factory = sessionmaker(bind=engine)
         session = scoped_session(session_factory)
 

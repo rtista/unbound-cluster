@@ -1,1 +1,1 @@
-from .thread import UnboundClusterAPI
+from .thread import ClusterMaster

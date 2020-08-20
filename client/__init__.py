@@ -1,1 +1,1 @@
-from .thread import UnboundClusterSyncer
+from .thread import ClusterSlave
