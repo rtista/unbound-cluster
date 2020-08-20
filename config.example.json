@@ -1,6 +1,6 @@
 {
     "log": {
-        "level": "DEBUG",
+        "level": "INFO",
         "file": "logs/unbound-cluster.log",
         "error": "logs/unbound-cluster-error.log"
     },
