@@ -1,8 +1,7 @@
 # Third-party Imports
 import falcon
 import sqlalchemy
-from loguru import logger
-from sqlalchemy.exc import SQLAlchemyError, NoReferenceError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 # Local Imports
 from models import Record
@@ -69,12 +68,15 @@ class RecordController(object):
 
         # Check body parameters
         if not all(map(req.media.get, ('resource', 'rdata', 'ttl'))):
-            raise falcon.HTTPBadRequest('Missing Body Parameters', 'Missing \'resource\', \'rdata\' or \'ttl\' in the request body.')
+            raise falcon.HTTPBadRequest('Missing Body Parameters',
+                                        'Missing \'resource\', \'rdata\' or \'ttl\' in the request body.')
 
         # Retrieve body parameters
         resource = req.media.get('resource')
         ttl = req.media.get('ttl')
         rdata = req.media.get('rdata')
+
+        # TODO: Validate Record
 
         # Create and add record entity to transaction
         record = Record(zone=zone, resource=resource, rtype=rtype, ttl=ttl, rdata=rdata)
@@ -83,11 +85,20 @@ class RecordController(object):
         # Attempt database changes commit
         try:
             self.dbconn.commit()
+
+        except IntegrityError as e:
+
+            # Rollback transaction
+            self.dbconn.rollback()
+
+            # Raise 409 conflict
+            raise falcon.HTTPConflict('Conflict', 'Record already exists.')
+
         except SQLAlchemyError as e:
 
             # Rollback transaction and raise error
             self.dbconn.rollback()
-            raise falcon.InternalServerError('Internal Server Error', f'Message: {str(e)}')
+            raise falcon.HTTPInternalServerError('Internal Server Error', f'Message: {str(e)}')
 
         resp.media = {'zone': record.zone, 'resource': record.resource, 'rtype': record.rtype, 'ttl': record.ttl, 'rdata': record.rdata}
         resp.status_code = falcon.HTTP_201
