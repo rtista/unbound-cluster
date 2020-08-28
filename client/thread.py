@@ -1,10 +1,8 @@
 # Batteries
 import os
 import time
-import json
 import signal
 import threading
-import contextlib
 
 # Third-party imports
 import requests
@@ -24,6 +22,10 @@ class ClusterSlave(threading.Thread):
     # Slave headers
     _slave_headers = {'User-Agent': 'unbound-cluster-slave'}
 
+    # Zone record entries format for unbound
+    UNBOUND_DEF_FORMAT = 'local-data: "{resource}.{zone} {rtype} {ttl} {rdata}"'
+    UNBOUND_PTR_FORMAT = 'local-data-ptr: "{rdata} {ttl} {resource}.{zone}"'
+
     def __init__(self):
         """
         Create an instance of the unbound cluster sync client.
@@ -34,6 +36,33 @@ class ClusterSlave(threading.Thread):
         self._master_location = Config.get('cluster-slave.master-location')
         self._stop = False
         self._lastupdate = 0
+
+    def _flushzone(self, zone, records):
+        """
+        Flushes zone records to a zone file.
+
+        :param zone: The zone to write.
+        :param records: The records to flush to the zone.
+        """
+        # Check if zones directory exists
+        if not os.path.isdir(self._localdata_dir):
+            os.makedirs(self._localdata_dir)
+
+        recordlist = []
+
+        for record in records:
+
+            # If A record then also append PTR record
+            if record['rtype'] == 'A':
+                recordlist.append(f'{self.UNBOUND_PTR_FORMAT.format(**record)}\n')
+
+            # Append record to list
+            recordlist.append(f'{self.UNBOUND_DEF_FORMAT.format(**record)}\n')
+
+        # Flush changes to file
+        with open(f'{self._localdata_dir}/{zone}.conf', 'w+') as zonefile:
+            zonefile.write(f'server:\n\nlocal-zone: "{zone}" transparent\n\n')
+            zonefile.writelines(recordlist)
 
     def _unboundreload(self):
         """
@@ -82,7 +111,8 @@ class ClusterSlave(threading.Thread):
             try:
 
                 # Retrieve most recent
-                resp = requests.get(f'{self._master_location}/zone?updated={self._lastupdate}', headers=self._slave_headers)
+                resp = requests.get(
+                    f'{self._master_location}/zone?updated={self._lastupdate}', headers=self._slave_headers)
 
                 # Continue on API error
                 if resp.status_code != 200:
@@ -99,14 +129,8 @@ class ClusterSlave(threading.Thread):
                     if not records.json().get('records'):
                         break
 
-                    # Check if zones directory exists
-                    if not os.path.isdir(self._localdata_dir):
-                        os.makedirs(self._localdata_dir)
-
-                    # Flush changes to file
-                    with open(f'{self._localdata_dir}/{zone}.conf', 'w+') as zonefile:
-                        zonefile.write(f'server:\n\nlocal-zone: "e-goi.com" transparent\n\n')
-                        zonefile.writelines([ f'local-data: "{" ".join((".".join((r["resource"], r["zone"])), r["rtype"], str(r["ttl"]), r["rdata"]))}"\n' for r in records.json().get("records") ])
+                    #  Flush zone changes
+                    self._flushzone(zone, records.json().get('records'))
 
                 # If there were any modified zones
                 if resp.json().get('zones'):
