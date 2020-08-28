@@ -34,6 +34,9 @@ class Config(object):
     # Default configuration file
     CONFIG_FILE_PATH = f'{BASE_DIR}/config.json'
 
+    # Valid record types allowed
+    VALID_RECORD_TYPES = ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'CERT', 'SRV', 'TXT', 'SOA')
+
     # Class parameters
     _configfile = None
     _configdict = None
