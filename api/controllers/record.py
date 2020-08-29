@@ -4,7 +4,9 @@ import sqlalchemy
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 # Local Imports
+from config import Config
 from models import Record
+from utils.validator import RecordValidator, InvalidDNSRecord, InvalidDNSRecordType
 
 
 class RecordController(object):
@@ -67,16 +69,22 @@ class RecordController(object):
             raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' or \'rtype\' in the request URL.')
 
         # Check body parameters
-        if not all(map(req.media.get, ('resource', 'rdata', 'ttl'))):
+        if not all(map(req.media.get, ('resource', 'rdata'))):
             raise falcon.HTTPBadRequest('Missing Body Parameters',
                                         'Missing \'resource\', \'rdata\' or \'ttl\' in the request body.')
 
-        # Retrieve body parameters
-        resource = req.media.get('resource')
-        ttl = req.media.get('ttl')
+        # Retrieve mandatory body parameters
         rdata = req.media.get('rdata')
+        resource = req.media.get('resource')
 
-        # TODO: Validate Record
+        # Retrieve optional body parameters
+        ttl = req.media.get('ttl', Config.get('default-record-ttl', 3600))
+
+        # Validate Record
+        try:
+            RecordValidator.validate(zone, resource, rtype, rdata)
+        except (InvalidDNSRecord, InvalidDNSRecordType) as e:
+            raise falcon.HTTPConflict('Conflict', str(e))
 
         # Create and add record entity to transaction
         record = Record(zone=zone, resource=resource, rtype=rtype, ttl=ttl, rdata=rdata)
@@ -96,9 +104,16 @@ class RecordController(object):
 
         except SQLAlchemyError as e:
 
-            # Rollback transaction and raise error
+            # Rollback transaction
             self.dbconn.rollback()
+
+            # Raise 500 internal server error
             raise falcon.HTTPInternalServerError('Internal Server Error', f'Message: {str(e)}')
 
-        resp.media = {'zone': record.zone, 'resource': record.resource, 'rtype': record.rtype, 'ttl': record.ttl, 'rdata': record.rdata}
-        resp.status_code = falcon.HTTP_201
+        resp.media, resp.status_code = {
+            'zone': record.zone,
+            'resource': record.resource,
+            'rtype': record.rtype,
+            'ttl': record.ttl,
+            'rdata': record.rdata
+        }, falcon.HTTP_201
