@@ -5,6 +5,7 @@
         "error": "logs/unbound-cluster-error.log"
     },
     "pidfile": "unbound-cluster.pid",
+    "default-record-ttl": 300,
     "cluster-master": {
         "datastore": "sqlite:///unbound-cluster.sqlite",
         "bind": "127.0.0.1",
