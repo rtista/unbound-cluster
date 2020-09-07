@@ -23,7 +23,7 @@ class ClusterSlave(threading.Thread):
     _slave_headers = {'User-Agent': 'unbound-cluster-slave'}
 
     # Zone record entries format for unbound
-    UNBOUND_DEF_FORMAT = 'local-data: "{resource}.{zone} {rtype} {ttl} {rdata}"'
+    UNBOUND_DEF_FORMAT = 'local-data: "{resource}.{zone} {ttl} {rtype} {rdata}"'
     UNBOUND_PTR_FORMAT = 'local-data-ptr: "{rdata} {ttl} {resource}.{zone}"'
 
     def __init__(self):
@@ -107,6 +107,9 @@ class ClusterSlave(threading.Thread):
         """
         while not self._stop:
 
+            # Rest for a while
+            time.sleep(5)
+
             # Query API for most recently updates
             try:
 
@@ -117,7 +120,7 @@ class ClusterSlave(threading.Thread):
                 # Continue on API error
                 if resp.status_code != 200:
                     logger.warning(f'API responded with {resp.status_code} HTTP status code.')
-                    raise
+                    continue
 
                 # For each updated zone
                 for zone in resp.json().get('zones'):
@@ -142,6 +145,3 @@ class ClusterSlave(threading.Thread):
 
             except Exception as e:
                 logger.error(f'Caught unexpected {str(e.__class__.__name__)} exception: {str(e)}')
-
-            # Rest for a while
-            time.sleep(5)
