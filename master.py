@@ -56,9 +56,9 @@ class UnboundClusterMaster(UnixProcess):
         # Create helper sink
         logger.add(
             Config.getpath('log.file'),
-            level=Config.get('log.level'), colorize=True, enqueue=True,
+            level=Config.get('log.level'), colorize=True, enqueue=True, encoding='utf-8',
             format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | '
-                    '<yellow>{thread.name: <23}</yellow> | '
+                    '<yellow>{thread.name: <13}</yellow> | '
                     '<level>{message}</level> (<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>)',
             rotation=timedelta(days=1), retention=timedelta(days=30), compression='gz')
 

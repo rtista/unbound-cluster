@@ -13,107 +13,183 @@ class RecordController(object):
     """
     Represents the Record controller which handles Record CRUD requests.
     """
-
-    def on_get(self, req, resp, zone=None, rtype=None):
+    def on_get(self, req: falcon.Request, resp: falcon.Response, rtype: str = None, rname: str = None):
         """
         Handles GET requests.
-
-        :param req: The request object.
-        :param resp: The response object.
-        :param zone: The DNS zone.
-        :param rtype: The record type.
         """
-        # Check URL parameters
-        if not zone:
-            raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' in the request URL.')
+        where = []
 
-        # Get all records of zone
-        where = f'zone = "{zone}"'
-
-        # Check if record is specified
+        # Check if record type is specified
         if rtype:
-            where += f' AND type = "{rtype}"'
+            where.append(f'rtype = "{rtype}"')
+
+        # Check if record name is specified
+        if rname:
+            where.append(f'rname = "{rname}"')
 
         # Check for updated parameter
         if 'updated' in req.params and str(req.params['updated']).isnumeric() and int(req.params['updated']) > 0:
-            where += f' AND updated > {int(req.params["updated"])}'
+            where.append(f'updated > {int(req.params["updated"])}')
 
-        # For each record in the warehouse
-        records = []
-        for record in self.dbconn.query(Record).filter(sqlalchemy.text(where)).all():
+        # For each record retrieved from database
+        records = [r.todict() for r in
+                   req.context.dbconn.query(Record).filter(sqlalchemy.text(' AND '.join(where))).all()]
 
-            records.append({
-                'zone': record.zone,
-                'resource': record.resource,
-                'rtype': record.rtype,
-                'ttl': record.ttl,
-                'rdata': record.rdata,
-                'created': record.created,
-                'updated': record.updated,
-            })
+        resp.status, resp.media = falcon.HTTP_200, {'records': records}
 
-        resp.media = { 'records': records }
-        resp.status = falcon.HTTP_200
-
-    def on_post(self, req, resp, zone=None, rtype=None):
+    def on_post(self, req: falcon.Request, resp: falcon.Response, rtype: str = None):
         """
         Handles POST requests.
-
-        :param req: The request object.
-        :param resp: The response object.
-        :param zone: The DNS zone.
-        :param rtype: The record type.
         """
         # Check URL parameters
-        if None in (zone, rtype):
-            raise falcon.HTTPBadRequest('Missing URL Parameters', 'Missing \'zone\' or \'rtype\' in the request URL.')
+        if not rtype:
+            raise falcon.HTTPBadRequest(
+                title='Missing URL Parameters', description='Resource type identifier is required in the URL.')
 
-        # Check body parameters
-        if not all(map(req.media.get, ('resource', 'rdata'))):
-            raise falcon.HTTPBadRequest('Missing Body Parameters',
-                                        'Missing \'resource\', \'rdata\' or \'ttl\' in the request body.')
-
-        # Retrieve mandatory body parameters
-        rdata = req.media.get('rdata')
-        resource = req.media.get('resource')
-
-        # Retrieve optional body parameters
-        ttl = req.media.get('ttl', Config.get('default-record-ttl', 3600))
-
-        # Validate Record
         try:
-            RecordValidator.validate(zone, resource, rtype, rdata)
+            # Retrieve body parameters
+            rname, rdata, ttl = req.media['rname'], req.media['rdata'], \
+                                req.media.get('ttl', Config.get('default-record-ttl', 3600))
+
+            # Validate record
+            RecordValidator.validate(rname, rtype, rdata)
+
+            # Create record entity
+            record = Record(rname=rname, rtype=rtype, ttl=ttl, rdata=rdata)
+
+            # Add and commit database transaction
+            req.context.dbconn.add(record)
+            req.context.dbconn.commit()
+
+        except KeyError as e:
+            raise falcon.HTTPBadRequest(
+                title='Missing Body Parameters', description=f'Missing \'{str(e)}\' in the request body.')
+
         except (InvalidDNSRecord, InvalidDNSRecordType) as e:
-            raise falcon.HTTPConflict('Conflict', str(e))
+            raise falcon.HTTPConflict(title='Conflict', description=str(e))
 
-        # Create and add record entity to transaction
-        record = Record(zone=zone, resource=resource, rtype=rtype, ttl=ttl, rdata=rdata)
-        self.dbconn.add(record)
-
-        # Attempt database changes commit
-        try:
-            self.dbconn.commit()
-
-        except IntegrityError as e:
+        except IntegrityError:
 
             # Rollback transaction
-            self.dbconn.rollback()
+            req.context.dbconn.rollback()
 
             # Raise 409 conflict
-            raise falcon.HTTPConflict('Conflict', 'Record already exists.')
+            raise falcon.HTTPConflict(title='Conflict', description='Record already exists.')
 
         except SQLAlchemyError as e:
 
             # Rollback transaction
-            self.dbconn.rollback()
+            req.context.dbconn.rollback()
 
             # Raise 500 internal server error
-            raise falcon.HTTPInternalServerError('Internal Server Error', f'Message: {str(e)}')
+            raise falcon.HTTPInternalServerError(title='Internal Server Error', description=f'Message: {str(e)}')
 
-        resp.media, resp.status_code = {
-            'zone': record.zone,
-            'resource': record.resource,
+        resp.status_code, resp.media = falcon.HTTP_201, {
+            'rname': record.rname,
             'rtype': record.rtype,
+            'rdata': record.rdata,
             'ttl': record.ttl,
-            'rdata': record.rdata
-        }, falcon.HTTP_201
+        }
+
+    def on_put(self, req: falcon.Request, resp: falcon.Response, rtype: str = None, rname: str = None):
+        """
+        Handles PUT requests.
+        """
+        # Check URL parameters
+        if not rtype:
+            raise falcon.HTTPBadRequest(
+                title='Missing URL Parameters', description='Resource type identifier is required in the URL.')
+
+        if not rname:
+            raise falcon.HTTPBadRequest(
+                title='Missing URL Parameters', description='Resource name identifier is required in the URL.')
+
+        # Save update statement where parameters
+        where = {'rtype': rtype, 'rname': rname}
+
+        try:
+            # Retrieve body parameters
+            values = {p: req.media.get(p) for p in ('rname', 'rdata', 'ttl') if req.media.get(p)}
+
+            # Validate record
+            RecordValidator.validate(values.get('rname', rname), rtype, values['rdata'])
+
+            # Add and commit database transaction
+            updated = req.context.dbconn.query(Record).filter_by(**where).update(values, synchronize_session=False)
+            req.context.dbconn.commit()
+
+            # If no rows were updated, insert
+            if updated == 0:
+
+                # Add and commit database transaction
+                req.context.dbconn.add(
+                    Record(rname=values.get('rname', rname), rtype=rtype, rdata=values['rdata'], ttl=values.get('ttl')))
+                req.context.dbconn.commit()
+
+        except KeyError as e:
+            raise falcon.HTTPBadRequest(
+                title='Missing Body Parameters', description=f'Missing \'{str(e)}\' in the request body.')
+
+        except (InvalidDNSRecord, InvalidDNSRecordType) as e:
+            raise falcon.HTTPConflict(title='Conflict', description=str(e))
+
+        except IntegrityError:
+
+            # Rollback transaction
+            req.context.dbconn.rollback()
+
+            # Raise 409 conflict
+            raise falcon.HTTPConflict(title='Conflict', description='Record already exists.')
+
+        except SQLAlchemyError as e:
+
+            # Rollback transaction
+            req.context.dbconn.rollback()
+
+            # Raise 500 internal server error
+            raise falcon.HTTPInternalServerError(title='Internal Server Error', description=f'Message: {str(e)}')
+
+        resp.status_code, resp.media = falcon.HTTP_200, {
+            'rname': values.get('rname', rname),
+            'rtype': rtype,
+            'rdata': values.get('rdata'),
+        }
+
+    def on_delete(self, req: falcon.Request, resp: falcon.Response, rtype: str = None, rname: str = None):
+        """
+        Handles DELETE requests.
+
+        Args:
+            req (falcon.Request): The request object.
+            resp (falcon.Response): The response object.
+            rtype (str): The record type.
+            rname (str): The record name.
+        """
+        # Check URL parameters
+        if not rtype:
+            raise falcon.HTTPBadRequest(
+                title='Missing URL Parameters', description='Resource type identifier is required in the URL.')
+
+        # Validate rname
+        if not rname:
+            raise falcon.HTTPBadRequest(
+                title='Bad Request', description='Resource name identifier is required in the URL.')
+
+        # Save update statement where parameters
+        where = {'rtype': rtype, 'rname': rname}
+
+        try:
+            # Delete rname and commit
+            deleted = req.context.dbconn.query(Record).filter_by(**where).delete(synchronize_session=False)
+            req.context.dbconn.commit()
+
+            # Set response code and body
+            resp.status, resp.media = falcon.HTTP_204, {'deleted': deleted}
+
+        except SQLAlchemyError as e:
+
+            # Rollback transaction
+            req.context.dbconn.rollback()
+
+            # Raise 500 internal server error
+            raise falcon.HTTPInternalServerError(title='Internal Server Error', description=f'Message: {str(e)}')

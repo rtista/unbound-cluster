@@ -14,6 +14,7 @@
     "cluster-slave": {
         "local-data-dir": "local-data.d",
         "unbound-pid": "/var/run/unbound/unbound.pid",
-        "master-location": "http://127.0.0.1:8000/api"
+        "master-location": "http://127.0.0.1:8000/api",
+        "update-interval": 5
     }
 }

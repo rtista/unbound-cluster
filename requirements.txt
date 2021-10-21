@@ -4,4 +4,5 @@ setproctitle
 sqlalchemy
 bjoern
 requests
+tldextract
 validators

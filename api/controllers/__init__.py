@@ -1,5 +1,4 @@
 # Local imports
-from .zone import ZoneController
 from .record import RecordController
 
 # The base point for each route
@@ -9,8 +8,7 @@ BASE_ENDPOINT = '/api'
 ROUTES = {
 
     # Zone Controller
-    '/zone': ZoneController,
-    '/zone/{zone}': ZoneController,
-    '/zone/{zone}/record': RecordController,
-    '/zone/{zone}/record/{rtype}': RecordController
+    '/record': RecordController,
+    '/record/{rtype}': RecordController,
+    '/record/{rtype}/{rname}': RecordController
 }
