@@ -1,11 +1,14 @@
 # Batteries
+import itertools
 import os
+import glob
 import time
 import signal
 import threading
 
 # Third-party imports
 import requests
+import tldextract
 from loguru import logger
 
 # Local Imports
@@ -23,8 +26,8 @@ class ClusterSlave(threading.Thread):
     _slave_headers = {'User-Agent': 'unbound-cluster-slave'}
 
     # Zone record entries format for unbound
-    UNBOUND_DEF_FORMAT = 'local-data: "{resource}.{zone} {ttl} {rtype} {rdata}"'
-    UNBOUND_PTR_FORMAT = 'local-data-ptr: "{rdata} {ttl} {resource}.{zone}"'
+    UNBOUND_DEF_FORMAT = 'local-data: "{rname} {ttl} {rtype} {rdata}"'
+    UNBOUND_PTR_FORMAT = 'local-data-ptr: "{rdata} {ttl} {rname}"'
 
     def __init__(self):
         """
@@ -34,8 +37,9 @@ class ClusterSlave(threading.Thread):
         self._localdata_dir = Config.getpath('cluster-slave.local-data-dir')
         self._unbound_pidfile = Config.getpath('cluster-slave.unbound-pid')
         self._master_location = Config.get('cluster-slave.master-location')
+        self._update_interval = Config.int('cluster-slave.update-interval', 5)
         self._stop = False
-        self._lastupdate = 0
+        self._last_update = 0
 
     def _flushzone(self, zone, records):
         """
@@ -94,6 +98,12 @@ class ClusterSlave(threading.Thread):
 
         return True
 
+    def rzone(self, record: dict) -> str:
+        """
+        Returns the record's zone.
+        """
+        return tldextract.extract(record['rname']).registered_domain
+
     def stopthread(self):
         """
         Stops the thread execution.
@@ -108,40 +118,68 @@ class ClusterSlave(threading.Thread):
         while not self._stop:
 
             # Rest for a while
-            time.sleep(5)
+            time.sleep(1)
+
+            # Check for update every x seconds
+            if time.time() - self._last_update < self._update_interval:
+                continue
 
             # Query API for most recently updates
             try:
 
                 # Retrieve most recent
                 resp = requests.get(
-                    f'{self._master_location}/zone?updated={self._lastupdate}', headers=self._slave_headers)
+                    f'{self._master_location}/record?updated={self._last_update}', headers=self._slave_headers)
 
                 # Continue on API error
                 if resp.status_code != 200:
                     logger.warning(f'API responded with {resp.status_code} HTTP status code.')
                     continue
 
+                # Ignore when no records were updated
+                if not resp.json().get('records', []):
+                    logger.debug(f'No records updated.')
+                    continue
+
+                # Retrieve all records
+                resp = requests.get(f'{self._master_location}/record', headers=self._slave_headers)
+
+                # Continue on API error
+                if resp.status_code != 200:
+                    logger.warning(f'API responded with {resp.status_code} HTTP status code.')
+                    continue
+
+                records, zones = resp.json().get('records', []), []
+
                 # For each updated zone
-                for zone in resp.json().get('zones'):
+                for zone, r in itertools.groupby(sorted(records, key=self.rzone), key=self.rzone):
 
-                    # Request updated records from zone
-                    records = requests.get(f'{self._master_location}/zone/{zone}/record', headers=self._slave_headers)
+                    # Append zone to
+                    zones.append(zone)
 
-                    # No new records
-                    if not records.json().get('records'):
-                        break
+                    # Flush zone changes
+                    self._flushzone(zone, r)
 
-                    #  Flush zone changes
-                    self._flushzone(zone, records.json().get('records'))
+                # Flushing zone info
+                logger.info(f'Flushed zones: {zones}...')
 
-                # If there were any modified zones
-                if resp.json().get('zones'):
-                    logger.info(f'Received update from zones: {str(resp.json().get("zones"))}...')
+                # Remove any unnecessary zone files
+                if zones:
+                    zones_to_delete = [
+                        f for f in glob.glob(f'{self._localdata_dir}/*.conf')
+                        if os.path.basename(f).rsplit('.', 1)[0] not in zones
+                    ]
+
+                    # Delete empty zones
+                    map(os.unlink, zones_to_delete)
+                    logger.info(f'Deleted empty zone files: {zones_to_delete}')
+
+                # If records were found reload unbound to update resolution
+                if records:
                     self._unboundreload()
 
-                # Update lastupdate variable
-                self._lastupdate = int(time.time())
+                # Update last updated time variable
+                self._last_update = int(time.time())
 
-            except Exception as e:
-                logger.error(f'Caught unexpected {str(e.__class__.__name__)} exception: {str(e)}')
+            except Exception:
+                logger.exception(f'Caught an unexpected exception')

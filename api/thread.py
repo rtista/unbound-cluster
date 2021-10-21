@@ -1,20 +1,29 @@
 # Batteries
+import contextlib
 import threading
 
 # Third-party imports
 import bjoern
 import falcon
 from loguru import logger
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import scoped_session
-from sqlalchemy.exc import OperationalError
+import sqlalchemy
+import sqlalchemy.orm
+import sqlalchemy.exc
 
 # Local Imports
-from config import Config
 from models import Base
 from .controllers import BASE_ENDPOINT, ROUTES
 from .middleware import LoggingMiddleware, SQLAlchemyMiddleware
+
+
+def default_exception_handler(req: falcon.Request, resp: falcon.Response, ex: Exception, params: dict):
+    """
+    Default handler for any exception, catches the exception and logs it with loguru.
+    """
+    logger.exception('Caught an unexpected exception', exception=ex)
+
+    raise falcon.HTTPInternalServerError(
+        title='Internal Server Error', description='An error occurred while processing your request.')
 
 
 class ClusterMaster(threading.Thread):
@@ -44,26 +53,32 @@ class ClusterMaster(threading.Thread):
         This will run in a separate thread.
         """
         # MySQL Connection Configuration
-        engine = create_engine(self._datastore)
-        session_factory = sessionmaker(bind=engine)
-        session = scoped_session(session_factory)
+        engine = sqlalchemy.create_engine(self._datastore)
+        session_factory = sqlalchemy.orm.sessionmaker(bind=engine)
+        session = sqlalchemy.orm.scoped_session(session_factory)
 
         # MySQL Table Models Configuration
         try:
             Base.metadata.create_all(engine)
 
-        except (OperationalError) as e:
+        except sqlalchemy.exc.OperationalError as e:
             code, message = e.orig.args
             logger.error(f'Operational Error\nCode: {code}\nMessage: {message}')
             exit(1)
 
         # Create WSGI Application
-        api = falcon.API(
+        api = falcon.App(
             middleware=[
                 LoggingMiddleware(),
                 SQLAlchemyMiddleware(session)
             ]
         )
+
+        # Strip URL trailing slashes
+        api.req_options.strip_url_path_trailing_slash = True
+
+        # Add exception handlers
+        api.add_error_handler(Exception, default_exception_handler)
 
         # Route Loading
         for route in ROUTES:
@@ -76,3 +91,7 @@ class ClusterMaster(threading.Thread):
             bjoern.run(api, self._bind, self._port)
         except Exception as e:
             logger.info(f'Shutting down bjoern due to: {str(e)}')
+
+        # Dispose engine before thread shutdown
+        with contextlib.suppress(sqlalchemy.exc.DatabaseError):
+            engine.dispose()

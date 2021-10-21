@@ -1,6 +1,6 @@
 # Third-party Imports
 import validators
-from loguru import logger
+import tldextract
 
 # Batteries
 import ipaddress
@@ -27,27 +27,18 @@ class RecordValidator:
     """
     Static class which validates received DNS records.
     """
-
     @classmethod
-    def validate(cls, zone, resource, rtype, rdata):
+    def validate(cls, rname: str, rtype: str, rdata: str) -> None:
         """
         Validates a DNS record parameters.
-
-        Args:
-            zone: The record zone.
-            resource: The record resource.
-            rtype: The record type.
-            rdata: The record data.
         """
         # Check record type
         if rtype not in Config.SUPPORTED_RECORD_TYPES:
             raise InvalidDNSRecordType(f'Unsupported DNS record type "{rtype}".')
 
-        # Validate resource
-        try:
-            validators.domain(f'{resource}.{zone}')
-        except (ValueError, validators.ValidationFailure):
-            raise InvalidDNSRecord(f'Invalid DNS {rtype} record resource: "{resource}"')
+        # Extract zone from record and raise if invalid
+        if not tldextract.extract(rname).registered_domain:
+            raise InvalidDNSRecord(f'Invalid zone for domain name "{rname}"')
 
         # Validate RDATA by RTYPE
         try:

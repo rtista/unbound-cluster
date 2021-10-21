@@ -78,7 +78,7 @@ class Config(object):
         return True
 
     @classmethod
-    def get(cls, key, default=None):
+    def get(cls, key: str, default: object = None) -> object:
         """
         Retrieves the value for a key from the configuration file.
 
@@ -97,6 +97,21 @@ class Config(object):
         value = reduce(dict.get, key.split('.'), cls._configdict)
 
         return default if value is None else value
+
+    @classmethod
+    def int(cls, key: str, default: int = None):
+        """
+        Retrieves the value for a key from the configuration file.
+
+        Args:
+            key (str): The key from which to get the value. These
+                can be several splitted by a dot.
+            default (int): What to return if the key is not found.
+
+        Returns:
+            int: The configuration value.
+        """
+        return int(cls.get(str, default))
 
     @classmethod
     def getpath(cls, key):
